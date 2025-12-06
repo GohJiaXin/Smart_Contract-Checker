@@ -1,0 +1,50 @@
+{
+  "_format": "hh-sol-artifact-1",
+  "contractName": "RandomContract",
+  "sourceName": "contracts/mocks/MockMalicious.sol",
+  "abi": [
+    {
+      "inputs": [],
+      "name": "getValue",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_value",
+          "type": "uint256"
+        }
+      ],
+      "name": "setValue",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "value",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": "0x608080604052346100155760c5908161001b8239f35b600080fdfe6080806040526004361015601257600080fd5b600090813560e01c90816320965255146073575080633fa4f24514605857635524107714603e57600080fd5b346055576020366003190112605557600435815580f35b80fd5b50346055578060031936011260555760209054604051908152f35b905034608b5781600319360112608b57602091548152f35b5080fdfea26469706673582212202db9063dc479d28f19f19704648b38b4ddb665830620009beb5b28a9df4d52a464736f6c63430008130033",
+  "deployedBytecode": "0x6080806040526004361015601257600080fd5b600090813560e01c90816320965255146073575080633fa4f24514605857635524107714603e57600080fd5b346055576020366003190112605557600435815580f35b80fd5b50346055578060031936011260555760209054604051908152f35b905034608b5781600319360112608b57602091548152f35b5080fdfea26469706673582212202db9063dc479d28f19f19704648b38b4ddb665830620009beb5b28a9df4d52a464736f6c63430008130033",
+  "linkReferences": {},
+  "deployedLinkReferences": {}
+}

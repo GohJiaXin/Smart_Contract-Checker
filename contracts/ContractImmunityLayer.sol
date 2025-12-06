@@ -436,7 +436,7 @@ contract ContractImmunityLayer is Ownable, ReentrancyGuard {
         address _caller,
         bytes calldata _data,
         uint256 _value
-    ) internal view returns (ThreatDetection memory) {
+    ) internal  returns (ThreatDetection memory) {
         
         ThreatLevel level = ThreatLevel.NONE;
         VulnerabilityType vulnType = VulnerabilityType.UNKNOWN;
@@ -541,7 +541,7 @@ contract ContractImmunityLayer is Ownable, ReentrancyGuard {
     
     function _detectStateManipulation(
         address _caller
-    ) internal view returns (bool) {
+    ) internal returns (bool) {
         if (lastInteractionBlock[_caller] == block.number) {
             suspiciousAddressCount[_caller]++;
             return suspiciousAddressCount[_caller] >= suspiciousCallThreshold;
@@ -606,7 +606,7 @@ contract ContractImmunityLayer is Ownable, ReentrancyGuard {
         return false;
     }
     
-    function _detectHighFrequencyCalls(address _caller) internal view returns (bool) {
+    function _detectHighFrequencyCalls(address _caller) internal  returns (bool) {
         if (lastInteractionBlock[_caller] == block.number) {
             suspiciousAddressCount[_caller]++;
             return suspiciousAddressCount[_caller] > 3;

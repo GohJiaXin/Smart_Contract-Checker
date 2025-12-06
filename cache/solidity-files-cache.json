@@ -1,0 +1,340 @@
+{
+  "_format": "hh-sol-cache-2",
+  "files": {
+    "C:\\Users\\Goh Jia Xin\\OneDrive - Singapore Polytechnic\\Documents\\GitHub\\Smart_Contract-Checker\\contracts\\AIAnalysisOracle.sol": {
+      "lastModificationDate": 1764999775047,
+      "contentHash": "11626080497ffac4eea3a292c1d657a7",
+      "sourceName": "contracts/AIAnalysisOracle.sol",
+      "solcConfig": {
+        "version": "0.8.19",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.19"
+      ],
+      "artifacts": [
+        "AIAnalysisOracle"
+      ]
+    },
+    "C:\\Users\\Goh Jia Xin\\OneDrive - Singapore Polytechnic\\Documents\\GitHub\\Smart_Contract-Checker\\contracts\\ContractImmunityLayer.sol": {
+      "lastModificationDate": 1765001492165,
+      "contentHash": "c80b64f8fdba70e49cd9f6d3ab8a1992",
+      "sourceName": "contracts/ContractImmunityLayer.sol",
+      "solcConfig": {
+        "version": "0.8.19",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "@openzeppelin/contracts/access/Ownable.sol",
+        "@openzeppelin/contracts/security/ReentrancyGuard.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.19"
+      ],
+      "artifacts": [
+        "ContractImmunityLayer"
+      ]
+    },
+    "C:\\Users\\Goh Jia Xin\\OneDrive - Singapore Polytechnic\\Documents\\GitHub\\Smart_Contract-Checker\\node_modules\\@openzeppelin\\contracts\\access\\Ownable.sol": {
+      "lastModificationDate": 1764999346951,
+      "contentHash": "5a20b2cad87ddb61c7a3a6af21289e28",
+      "sourceName": "@openzeppelin/contracts/access/Ownable.sol",
+      "solcConfig": {
+        "version": "0.8.19",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../utils/Context.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "Ownable"
+      ]
+    },
+    "C:\\Users\\Goh Jia Xin\\OneDrive - Singapore Polytechnic\\Documents\\GitHub\\Smart_Contract-Checker\\node_modules\\@openzeppelin\\contracts\\security\\ReentrancyGuard.sol": {
+      "lastModificationDate": 1764999346979,
+      "contentHash": "1535f8c0c68463f8c1b5239f7584e71f",
+      "sourceName": "@openzeppelin/contracts/security/ReentrancyGuard.sol",
+      "solcConfig": {
+        "version": "0.8.19",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "ReentrancyGuard"
+      ]
+    },
+    "C:\\Users\\Goh Jia Xin\\OneDrive - Singapore Polytechnic\\Documents\\GitHub\\Smart_Contract-Checker\\node_modules\\@openzeppelin\\contracts\\utils\\Context.sol": {
+      "lastModificationDate": 1764999345349,
+      "contentHash": "f07feb4a44b1a4872370da5aa70e8e46",
+      "sourceName": "@openzeppelin/contracts/utils/Context.sol",
+      "solcConfig": {
+        "version": "0.8.19",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.0"
+      ],
+      "artifacts": [
+        "Context"
+      ]
+    },
+    "C:\\Users\\Goh Jia Xin\\OneDrive - Singapore Polytechnic\\Documents\\GitHub\\Smart_Contract-Checker\\contracts\\mocks\\MockMalicious.sol": {
+      "lastModificationDate": 1765001913848,
+      "contentHash": "1904035e3ae001f01c16f1d3b73d5a1c",
+      "sourceName": "contracts/mocks/MockMalicious.sol",
+      "solcConfig": {
+        "version": "0.8.19",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.19"
+      ],
+      "artifacts": [
+        "FlashLoanSimulator",
+        "IVulnerableBank",
+        "MockMalicious",
+        "RandomContract",
+        "ReentrancyTester"
+      ]
+    },
+    "C:\\Users\\Goh Jia Xin\\OneDrive - Singapore Polytechnic\\Documents\\GitHub\\Smart_Contract-Checker\\contracts\\ProtectedContract.sol": {
+      "lastModificationDate": 1764998107388,
+      "contentHash": "71104f3e69fcd3548d958c8f17f77d61",
+      "sourceName": "contracts/ProtectedContract.sol",
+      "solcConfig": {
+        "version": "0.8.19",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.19"
+      ],
+      "artifacts": [
+        "ProtectedContract"
+      ]
+    },
+    "C:\\Users\\Goh Jia Xin\\OneDrive - Singapore Polytechnic\\Documents\\GitHub\\Smart_Contract-Checker\\contracts\\VulnerableBank.sol": {
+      "lastModificationDate": 1764997897890,
+      "contentHash": "05f9431ef4985acad908919edcb24048",
+      "sourceName": "contracts/VulnerableBank.sol",
+      "solcConfig": {
+        "version": "0.8.19",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "./ProtectedContract.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.19"
+      ],
+      "artifacts": [
+        "VulnerableBank"
+      ]
+    },
+    "C:\\Users\\Goh Jia Xin\\OneDrive - Singapore Polytechnic\\Documents\\GitHub\\Smart_Contract-Checker\\contracts\\TestVulnerable.sol": {
+      "lastModificationDate": 1765000298251,
+      "contentHash": "b14462998ea5d10cc9731d606f0c758a",
+      "sourceName": "contracts/TestVulnerable.sol",
+      "solcConfig": {
+        "version": "0.8.19",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "viaIR": true,
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.19"
+      ],
+      "artifacts": [
+        "TestVulnerable"
+      ]
+    }
+  }
+}
