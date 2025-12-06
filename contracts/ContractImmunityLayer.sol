@@ -28,6 +28,10 @@ contract ContractImmunityLayer is Ownable, ReentrancyGuard {
         ACCESS_CONTROL,
         INTEGER_OVERFLOW,
         LOGIC_ERROR,
+        LARGE_WITHDRAWAL,
+        RAPID_WITHDRAWAL,
+        ADMIN_FUNCTION_ABUSE,
+        ORACLE_MANIPULATION,
         UNKNOWN
     }
     
@@ -79,6 +83,14 @@ contract ContractImmunityLayer is Ownable, ReentrancyGuard {
     mapping(address => uint256) public lastInteractionBlock;
     mapping(bytes32 => AISimulationResult) public simulationResults;
     
+    // Banking-specific tracking
+    mapping(address => mapping(address => uint256)) public userAverageDeposit; // contract => user => average
+    mapping(address => mapping(address => uint256)) public userDepositCount; // contract => user => count
+    mapping(address => uint256) public contractAverageDeposit; // contract => average
+    mapping(address => uint256) public contractDepositCount; // contract => count
+    mapping(address => uint256) public lastWithdrawalAmount; // contract => amount
+    mapping(address => uint256) public lastWithdrawalTime; // contract => timestamp
+    
     uint256 public totalThreatsDetected;
     uint256 public totalThreatsMitigated;
     uint256 public totalLossPrevented;
@@ -89,7 +101,14 @@ contract ContractImmunityLayer is Ownable, ReentrancyGuard {
     uint256 public suspiciousCallThreshold = 5;
     uint256 public gasPriceThreshold = 100 gwei;
     
+    // Banking-specific thresholds
+    uint256 public largeWithdrawalMultiplier = 10; // Flag withdrawals >10x average
+    uint256 public maxWithdrawalAmount = 1000 ether; // Absolute max withdrawal
+    uint256 public patternAnalysisWindow = 100; // Blocks to analyze patterns
+    uint256 public rapidWithdrawalThreshold = 3; // Max withdrawals per window
+    
     address public aiOracle;
+    address public priceOracle; // Optional price oracle for token swaps
     bool public emergencyStop;
     
     // ========== EVENTS ==========
@@ -344,6 +363,29 @@ contract ContractImmunityLayer is Ownable, ReentrancyGuard {
         gasPriceThreshold = _threshold;
     }
     
+    function setLargeWithdrawalMultiplier(uint256 _multiplier) external onlyOwner {
+        require(_multiplier > 0 && _multiplier <= 100, "Invalid multiplier");
+        largeWithdrawalMultiplier = _multiplier;
+    }
+    
+    function setMaxWithdrawalAmount(uint256 _amount) external onlyOwner {
+        maxWithdrawalAmount = _amount;
+    }
+    
+    function setPatternAnalysisWindow(uint256 _blocks) external onlyOwner {
+        require(_blocks > 0, "Invalid window");
+        patternAnalysisWindow = _blocks;
+    }
+    
+    function setRapidWithdrawalThreshold(uint256 _threshold) external onlyOwner {
+        require(_threshold > 0, "Invalid threshold");
+        rapidWithdrawalThreshold = _threshold;
+    }
+    
+    function setPriceOracle(address _oracle) external onlyOwner {
+        priceOracle = _oracle;
+    }
+    
     // ========== AI ORACLE FUNCTIONS ==========
     function receiveAISimulationResult(
         bytes32 _threatId,
@@ -442,7 +484,20 @@ contract ContractImmunityLayer is Ownable, ReentrancyGuard {
         VulnerabilityType vulnType = VulnerabilityType.UNKNOWN;
         string memory reason = "";
         
-        if (_detectReentrancyPattern(_data, _caller)) {
+        // Banking-specific detections (check these first for banking contracts)
+        if (_detectLargeWithdrawal(_target, _data, _caller)) {
+            level = ThreatLevel.HIGH;
+            vulnType = VulnerabilityType.LARGE_WITHDRAWAL;
+            reason = "Unusually large withdrawal detected (>10x average)";
+        } else if (_detectRapidWithdrawalPattern(_target, _caller)) {
+            level = ThreatLevel.MEDIUM;
+            vulnType = VulnerabilityType.RAPID_WITHDRAWAL;
+            reason = "Rapid withdrawal pattern detected";
+        } else if (_detectAdminFunctionAbuse(_data, _caller)) {
+            level = ThreatLevel.CRITICAL;
+            vulnType = VulnerabilityType.ADMIN_FUNCTION_ABUSE;
+            reason = "Suspicious admin function call detected";
+        } else if (_detectReentrancyPattern(_data, _caller)) {
             level = ThreatLevel.HIGH;
             vulnType = VulnerabilityType.REENTRANCY;
             reason = "Possible reentrancy attack pattern detected";
@@ -473,6 +528,9 @@ contract ContractImmunityLayer is Ownable, ReentrancyGuard {
             level = ThreatLevel.LOW;
             reason = "Unusually high gas price";
         }
+        
+        // Update banking statistics for deposit/withdrawal tracking
+        _updateBankingStats(_target, _data, _caller, _value);
         
         return ThreatDetection({
             suspiciousCaller: _caller,
@@ -612,6 +670,207 @@ contract ContractImmunityLayer is Ownable, ReentrancyGuard {
             return suspiciousAddressCount[_caller] > 3;
         }
         return false;
+    }
+    
+    // ========== BANKING-SPECIFIC DETECTION FUNCTIONS ==========
+    
+    /**
+     * @dev Detect unusually large withdrawals (>10x average deposit)
+     * @param _target Target contract address
+     * @param _data Calldata containing function call
+     */
+    function _detectLargeWithdrawal(
+        address _target,
+        bytes calldata _data,
+        address /* _caller */
+    ) internal view returns (bool) {
+        if (_data.length < 36) return false; // Need at least 4 bytes selector + 32 bytes uint256
+        
+        bytes4 funcSig = bytes4(_data[:4]);
+        // withdraw(uint256) = 0x2e1a7d4d
+        // safeWithdraw(uint256) = 0x... (calculated at runtime)
+        bytes4 withdrawSig = 0x2e1a7d4d; // withdraw(uint256)
+        bytes4 safeWithdrawSig = bytes4(keccak256("safeWithdraw(uint256)")); // safeWithdraw(uint256)
+        
+        // Check if this is a withdraw function
+        if (funcSig == withdrawSig || funcSig == safeWithdrawSig) {
+            // Decode withdrawal amount from calldata
+            uint256 withdrawalAmount;
+            // Skip function selector (4 bytes), read uint256 (32 bytes)
+            assembly {
+                withdrawalAmount := calldataload(add(_data.offset, 4))
+            }
+            
+            // Get average deposit for this contract
+            uint256 avgDeposit = contractAverageDeposit[_target];
+            
+            // Check if withdrawal is >10x average
+            if (avgDeposit > 0 && withdrawalAmount > avgDeposit * largeWithdrawalMultiplier) {
+                return true;
+            }
+            
+            // Check absolute maximum
+            if (withdrawalAmount > maxWithdrawalAmount) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * @dev Detect rapid withdrawal patterns (multiple withdrawals in short time)
+     * @param _target Target contract address
+     */
+    function _detectRapidWithdrawalPattern(
+        address _target,
+        address /* _caller */
+    ) internal view returns (bool) {
+        // Check if multiple withdrawals happened recently
+        uint256 lastWithdrawal = lastWithdrawalTime[_target];
+        if (lastWithdrawal > 0 && block.timestamp - lastWithdrawal < patternAnalysisWindow * 12) {
+            // Multiple withdrawals within pattern window
+            return true;
+        }
+        
+        return false;
+    }
+    
+    /**
+     * @dev Detect suspicious admin function calls
+     * @param _data Calldata containing function call
+     * @param _caller Address making the call
+     */
+    function _detectAdminFunctionAbuse(
+        bytes calldata _data,
+        address _caller
+    ) internal view returns (bool) {
+        if (_data.length < 4) return false;
+        
+        bytes4 funcSig = bytes4(_data[:4]);
+        
+        // Admin function signatures
+        bytes4[] memory adminSigs = new bytes4[](12);
+        adminSigs[0] = 0xf2fde38b; // transferOwnership(address)
+        adminSigs[1] = 0xa6f9dae1; // changeOwner(address)
+        adminSigs[2] = 0x3cebb823; // setOwner(address)
+        adminSigs[3] = 0x704b6c02; // mint(address,uint256)
+        adminSigs[4] = 0x40c10f19; // mint(address,uint256)
+        adminSigs[5] = 0x42966c68; // burn(uint256)
+        adminSigs[6] = 0x9dc29fac; // burn(address,uint256)
+        adminSigs[7] = 0x3659cfe6; // upgradeTo(address)
+        adminSigs[8] = 0x4f1ef286; // upgradeToAndCall(address,bytes)
+        adminSigs[9] = 0x8f283970; // changeAdmin(address)
+        adminSigs[10] = 0x5c60da1b; // implementation()
+        adminSigs[11] = 0xf851a440; // admin()
+        
+        for (uint i = 0; i < adminSigs.length; i++) {
+            if (funcSig == adminSigs[i]) {
+                // Check if caller is a contract (suspicious for admin functions)
+                if (_caller.code.length > 0) {
+                    return true;
+                }
+                // Check if called with high gas price (potential front-running)
+                if (tx.gasprice > gasPriceThreshold * 2) {
+                    return true;
+                }
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * @dev Update banking statistics for pattern analysis
+     * @param _target Target contract address
+     * @param _data Calldata containing function call
+     * @param _caller Address making the call
+     * @param _value ETH value sent
+     */
+    function _updateBankingStats(
+        address _target,
+        bytes calldata _data,
+        address _caller,
+        uint256 _value
+    ) internal {
+        // _caller is used below in userAverageDeposit tracking
+        if (_data.length < 4) return;
+        
+        bytes4 funcSig = bytes4(_data[:4]);
+        bytes4 depositSig = bytes4(keccak256("deposit()")); // deposit()
+        bytes4 withdrawSig = 0x2e1a7d4d; // withdraw(uint256)
+        bytes4 safeWithdrawSig = bytes4(keccak256("safeWithdraw(uint256)")); // safeWithdraw(uint256)
+        
+        // Track deposits
+        if (funcSig == depositSig && _value > 0) {
+            contractDepositCount[_target]++;
+            contractAverageDeposit[_target] = 
+                ((contractAverageDeposit[_target] * (contractDepositCount[_target] - 1)) + _value) / 
+                contractDepositCount[_target];
+            
+            userDepositCount[_target][_caller]++;
+            userAverageDeposit[_target][_caller] = 
+                ((userAverageDeposit[_target][_caller] * (userDepositCount[_target][_caller] - 1)) + _value) / 
+                userDepositCount[_target][_caller];
+        }
+        
+        // Track withdrawals
+        if (funcSig == withdrawSig || funcSig == safeWithdrawSig) {
+            if (_data.length >= 36) {
+                uint256 withdrawalAmount;
+                assembly {
+                    withdrawalAmount := calldataload(add(_data.offset, 4))
+                }
+                lastWithdrawalAmount[_target] = withdrawalAmount;
+                lastWithdrawalTime[_target] = block.timestamp;
+            }
+        }
+    }
+    
+    /**
+     * @dev Simulate withdrawal before execution (view function for analysis)
+     * @param _target Target contract address
+     * @param _data Calldata containing withdrawal call
+     * @return wouldSucceed Whether the withdrawal would succeed
+     * @return estimatedBalance Balance after withdrawal
+     * @return riskLevel Risk level of the withdrawal
+     */
+    function simulateWithdrawal(
+        address _target,
+        bytes calldata _data
+    ) external view returns (
+        bool wouldSucceed,
+        uint256 estimatedBalance,
+        uint256 riskLevel
+    ) {
+        if (_data.length < 36) {
+            return (false, 0, 0);
+        }
+        
+        uint256 withdrawalAmount;
+        assembly {
+            withdrawalAmount := calldataload(add(_data.offset, 4))
+        }
+        
+        uint256 currentBalance = _target.balance;
+        estimatedBalance = currentBalance > withdrawalAmount ? 
+            currentBalance - withdrawalAmount : 0;
+        
+        // Calculate risk level
+        riskLevel = 0;
+        uint256 avgDeposit = contractAverageDeposit[_target];
+        
+        if (avgDeposit > 0 && withdrawalAmount > avgDeposit * largeWithdrawalMultiplier) {
+            riskLevel = 3; // HIGH risk
+        } else if (avgDeposit > 0 && withdrawalAmount > avgDeposit * 5) {
+            riskLevel = 2; // MEDIUM risk
+        } else if (withdrawalAmount > maxWithdrawalAmount) {
+            riskLevel = 4; // CRITICAL risk
+        } else {
+            riskLevel = 1; // LOW risk
+        }
+        
+        wouldSucceed = estimatedBalance >= 0 && currentBalance >= withdrawalAmount;
     }
     
     function _freezeTransaction(bytes32 _threatId, ThreatDetection memory _threat) internal {
