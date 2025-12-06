@@ -280,3 +280,4 @@ For questions or demo requests, see the documentation or open an issue.
 
 **Simple, but powerful.** 🛡️
 
+
