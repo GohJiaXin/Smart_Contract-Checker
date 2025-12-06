@@ -195,7 +195,7 @@ async function demoFlashLoanAttack() {
     );
     console.log("   ❌ Unexpected: Transaction succeeded");
   } catch (error) {
-    if (error.message.includes("Transaction frozen")) {
+    if (error.message && (error.message.includes("Transaction frozen") || error.message.includes("frozen"))) {
       console.log("   ✅ TRANSACTION FROZEN FOR SECURITY REVIEW");
       console.log("   ⏸️  Transaction has NOT been executed");
       console.log("   ⏸️  Protocol funds are SAFE");
@@ -261,17 +261,14 @@ async function demoFlashLoanAttack() {
         console.log(`      - Potential Impact: 1000+ ETH at risk`);
         console.log(`      - AI Recommendation: ${aiAnalysis.suggestedAction.toUpperCase()}`);
         console.log();
-        console.log("   🌐 Why This is Web3-Specific:");
-        console.log("      • Flash loans don't exist in traditional banking");
-        console.log("      • No collateral required (impossible in banks)");
-        console.log("      • Instant execution (banks take days)");
-        console.log("      • Repay in same transaction (unique to blockchain)");
-        console.log();
         console.log("   🤔 What would you like to do?");
         console.log("      1. REVERT - Block the transaction (recommended)");
-        console.log("      2. EXECUTE - Allow the transaction (EXTREMELY DANGEROUS)");
+        console.log("      2. EXECUTE - Allow the transaction (dangerous)");
         console.log("      3. SIMULATE - Request more analysis");
         console.log();
+        
+        // Ensure stdout is flushed before asking for input
+        process.stdout.write("");
         
         // Get user input
         const answer = await askQuestion("   Enter your choice (1/2/3): ");
@@ -284,47 +281,59 @@ async function demoFlashLoanAttack() {
           
           await immunityLayer.connect(owner).executeOwnerOverride(threatId, "revert");
           
-          console.log("   ✅ Flash Loan Attack BLOCKED");
-          console.log("   🛡️  Protocol funds are PROTECTED");
+          console.log("   ✅ Transaction REVERTED");
+          console.log("   🛡️  Funds are PROTECTED");
           console.log("   ✅ Threat marked as MITIGATED");
-          console.log("   💰 Estimated Loss Prevented: 1000+ ETH");
           
           const finalStats = await immunityLayer.getStats();
           console.log();
           console.log("   📊 Updated Statistics:");
           console.log(`      Threats Detected: ${finalStats.threatsDetected}`);
           console.log(`      Threats Mitigated: ${finalStats.threatsMitigated}`);
-          console.log(`      Loss Prevented: ${ethers.utils.formatEther(finalStats.lossPrevented)} ETH`);
           
         } else if (answer === "2" || answer.toLowerCase() === "execute") {
           console.log("   ⚠️  You chose: EXECUTE");
-          console.log("   ⚠️  WARNING: This is EXTREMELY DANGEROUS!");
-          console.log("   ⚠️  Flash loan attacks have drained billions in DeFi!");
+          console.log("   ⚠️  WARNING: This is dangerous!");
           console.log("   ⚠️  Executing despite AI recommendation...");
           await delay(1500);
           
-          console.log("   ⚠️  Transaction would execute (if freeze period allows)");
-          console.log("   ⚠️  This could result in complete protocol drain!");
-          console.log("   ⚠️  Flash loan attacks are irreversible!");
+          try {
+            await immunityLayer.connect(owner).executeOwnerOverride(threatId, "execute");
+            console.log("   ⚠️  Transaction EXECUTED with owner override");
+            console.log("   ⚠️  This could result in fund loss!");
+            console.log("   ⚠️  Flash loan attacks are irreversible!");
+            
+            const finalStats = await immunityLayer.getStats();
+            console.log();
+            console.log("   📊 Updated Statistics:");
+            console.log(`      Threats Detected: ${finalStats.threatsDetected}`);
+            console.log(`      Threats Mitigated: ${finalStats.threatsMitigated}`);
+          } catch (error) {
+            console.log("   ⚠️  Execution failed or freeze period expired");
+            console.log("   ⚠️  Transaction remains frozen for safety");
+          }
           
         } else if (answer === "3" || answer.toLowerCase() === "simulate") {
           console.log("   🔍 You chose: SIMULATE");
           console.log("   🔍 Requesting additional AI analysis...");
           await delay(1500);
           
+          try {
+            await immunityLayer.connect(owner).executeOwnerOverride(threatId, "simulate");
+          } catch (error) {
+            // simulate action reverts with "Simulation requested" - this is expected
+            if (error.message.includes("Simulation requested")) {
+              console.log("   ✅ Simulation requested successfully");
+              console.log("   🔍 AI Oracle will perform deeper analysis...");
+              await delay(1500);
+            }
+          }
+          
           console.log("   📊 Additional Analysis:");
           console.log("      - Risk Level: CRITICAL");
-          console.log("      - Attack Type: Flash Loan (Web3-Specific)");
           console.log("      - Estimated Loss: 1000+ ETH");
           console.log("      - Pattern Match: 98% confidence");
-          console.log("      - Attack Vector: Price manipulation via flash loan");
           console.log("      - Final Recommendation: REVERT");
-          console.log();
-          console.log("   💡 Flash loan attacks are unique to DeFi:");
-          console.log("      • Impossible in traditional banking");
-          console.log("      • No collateral required");
-          console.log("      • Must repay in same transaction");
-          console.log("      • Used to manipulate prices and drain protocols");
           
         } else {
           console.log("   ⚠️  Invalid choice. Defaulting to REVERT...");
