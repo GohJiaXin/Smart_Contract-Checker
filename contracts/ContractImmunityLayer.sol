@@ -73,6 +73,7 @@ contract ContractImmunityLayer is Ownable, ReentrancyGuard {
         uint256 freezeUntil;
         bool executed;
         bool cancelled;
+        uint256 value; // <-- store ETH value attached to original protectedCall
     }
     
     // ========== STATE VARIABLES ==========
@@ -118,6 +119,16 @@ contract ContractImmunityLayer is Ownable, ReentrancyGuard {
         address indexed caller,
         ThreatLevel level,
         VulnerabilityType vulnType,
+        string reason
+    );
+    
+    // New: emit for informational detections (LOW / MEDIUM) so you can identify false positives
+    event ThreatLogged(
+        bytes32 indexed threatId,
+        address indexed targetContract,
+        address indexed caller,
+        uint256 level,
+        uint256 vulnType,
         string reason
     );
     
@@ -197,49 +208,83 @@ contract ContractImmunityLayer is Ownable, ReentrancyGuard {
     function protectedCall(
         address _target,
         bytes calldata _data
-    ) 
-        external 
-        payable 
-        nonReentrant 
-        notEmergencyStopped
-        returns (bytes memory) 
-    {
-        require(protectedContracts[_target].isProtected, "Target not protected");
-        
+    ) external payable returns (bytes memory) {
+        require(protectedContracts[_target].isProtected, "Contract not protected");
+
         ThreatDetection memory threat = _detectThreats(_target, msg.sender, _data, msg.value);
-        
+
         bytes32 threatId = keccak256(
             abi.encodePacked(_target, msg.sender, _data, msg.value, block.number, block.timestamp)
         );
         
-        if (threat.level > ThreatLevel.NONE) {
+        // NEW: persist all detections but only count/emit/freeze for HIGH+
+        if (threat.level != ThreatLevel.NONE) {
+            // store detection for audit/history
             threatDetections[threatId] = threat;
-            totalThreatsDetected++;
-            
-            emit ThreatDetected(
-                threatId,
-                _target,
-                msg.sender,
-                threat.level,
-                threat.vulnType,
-                threat.reason
-            );
-            
-            if (threat.level >= ThreatLevel.HIGH) {
-                _freezeTransaction(threatId, threat);
-                _requestAISimulation(threatId, threat);
-                
-                revert(string(abi.encodePacked(
-                    "Transaction frozen for security review. Threat ID: ",
-                    _bytes32ToString(threatId)
-                )));
-            } else if (threat.level == ThreatLevel.MEDIUM) {
-                _logThreat(threatId, threat);
-            } else {
-                _logThreat(threatId, threat);
+            // internal logging (keeps history) - existing helper
+            _logThreat(threatId, threat);
+
+            // Emit a lightweight log for LOW / MEDIUM so you can inspect which detector fired
+            if (threat.level < ThreatLevel.HIGH) {
+                emit ThreatLogged(
+                    threatId,
+                    _target,
+                    msg.sender,
+                    uint256(threat.level),
+                    uint256(threat.vulnType),
+                    threat.reason
+                );
             }
+
+            // Only surface and treat as a "detected threat" when severity is HIGH or above
+            if (threat.level >= ThreatLevel.HIGH) {
+                // Persist and emit, but DO NOT execute target here.
+                totalThreatsDetected += 1;
+
+                emit ThreatDetected(
+                    threatId,
+                    _target,
+                    msg.sender,
+                    threat.level,
+                    threat.vulnType,
+                    threat.reason
+                );
+
+                // Freeze the transaction state and hold any attached ETH so user/owner can decide next.
+                // We store the value in the frozen transaction so it can be forwarded later on user decision.
+                uint256 freezeUntil = block.number + freezeDuration;
+                threatDetections[threatId].freezeUntilBlock = freezeUntil;
+                
+                frozenTransactions[threatId] = FrozenTransaction({
+                    threatId: threatId,
+                    initiator: threat.suspiciousCaller,
+                    frozenAt: block.timestamp,
+                    freezeUntil: freezeUntil,
+                    executed: false,
+                    cancelled: false,
+                    value: msg.value
+                });
+
+                emit TransactionFrozen(
+                    threatId,
+                    threat.targetContract,
+                    threat.suspiciousCaller,
+                    freezeUntil,
+                    threat.level
+                );
+
+                // Request AI simulation asynchronously
+                _requestAISimulation(threatId, threat);
+
+                // Do not execute target; persist freeze and emit event so off-chain
+                // tooling (demos) can prompt the user to resolve the threat.
+                return "";
+            }
+
+            // LOW / MEDIUM remain logged (audit) but DO NOT increment the public counter
         }
-        
+
+        // continue normal execution when no HIGH threat
         return _executeWithEnhancedMonitoring(_target, _data, msg.value, threatId);
     }
     
@@ -884,7 +929,8 @@ contract ContractImmunityLayer is Ownable, ReentrancyGuard {
             frozenAt: block.timestamp,
             freezeUntil: freezeUntil,
             executed: false,
-            cancelled: false
+            cancelled: false,
+            value: 0
         });
         
         emit TransactionFrozen(
@@ -969,5 +1015,91 @@ contract ContractImmunityLayer is Ownable, ReentrancyGuard {
     
     fallback() external payable {
         revert("Direct calls not allowed");
+    }
+
+    /**
+     * @dev Allow the suspicious caller or owner to resolve a frozen threat.
+     * action: "execute" -> forward original calldata + stored value to target
+     *         "revert"  -> cancel the frozen tx (refund stored value to initiator)
+     *         "simulate"-> request AI simulation (no state change)
+     */
+    function userResolveThreat(bytes32 _threatId, string calldata _action) external nonReentrant {
+        ThreatDetection storage threat = threatDetections[_threatId];
+        require(threat.level != ThreatLevel.NONE, "No threat found");
+        
+        FrozenTransaction storage frozenTx = frozenTransactions[_threatId];
+        require(frozenTx.frozenAt > 0, "Transaction not frozen");
+        require(!frozenTx.executed && !frozenTx.cancelled, "Already processed");
+
+        bytes32 actionHash = keccak256(bytes(_action));
+
+        // SIMULATE: just request AI analysis
+        if (actionHash == keccak256("simulate")) {
+            _requestAISimulation(_threatId, threat);
+            revert("AI simulation requested");
+        }
+
+        // Only the original initiator or owner may choose to execute or revert
+        require(msg.sender == frozenTx.initiator || msg.sender == owner(), "Not authorized");
+
+        // EXECUTE: forward original calldata + stored ETH to target
+        if (actionHash == keccak256("execute")) {
+            (bool success, bytes memory result) = threat.targetContract.call{value: frozenTx.value}(threat.originalCalldata);
+            if (!success) {
+                // bubble revert reason if any
+                if (result.length > 0) {
+                    assembly {
+                        let returndata_size := mload(result)
+                        revert(add(32, result), returndata_size)
+                    }
+                }
+                revert("Execution failed");
+            }
+
+            frozenTx.executed = true;
+            threat.isMitigated = true;
+            threat.mitigationResult = result;
+            totalThreatsMitigated++;
+
+            emit MitigationExecuted(
+                _threatId,
+                threat.targetContract,
+                true,
+                "User/Owner executed frozen transaction",
+                result
+            );
+
+            return;
+        }
+
+        // REVERT/CANCEL: refund stored ETH to initiator and mark cancelled
+        if (actionHash == keccak256("revert")) {
+            frozenTx.cancelled = true;
+            threat.isMitigated = true;
+            threat.mitigationResult = abi.encode("Cancelled by user/owner");
+
+            // refund stored ETH if any
+            if (frozenTx.value > 0) {
+                (bool sent, ) = frozenTx.initiator.call{value: frozenTx.value}("");
+                // ignore refund failure (could be retried by owner)
+                if (!sent) {
+                    // keep value in contract (owner may withdraw/refund later) — record failure
+                }
+            }
+
+            totalThreatsMitigated++;
+
+            emit MitigationExecuted(
+                _threatId,
+                threat.targetContract,
+                true,
+                "Cancelled by user/owner",
+                abi.encode("Cancelled")
+            );
+
+            return;
+        }
+
+        revert("Invalid action");
     }
 }

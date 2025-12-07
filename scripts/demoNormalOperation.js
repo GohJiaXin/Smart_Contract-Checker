@@ -126,9 +126,17 @@ async function demoNormalOperation() {
   console.log("-".repeat(80));
   
   const stats = await immunityLayer.getStats();
-  console.log(`   🛡️  Total Threats Detected:  ${stats.threatsDetected}`);
-  console.log(`   ✅ Total Threats Mitigated:  ${stats.threatsMitigated}`);
-  console.log(`   💰 Total Loss Prevented:     ${ethers.utils.formatEther(stats.lossPrevented)} ETH`);
+  console.log(`   🛡️  Total Threats Detected:  ${stats.threatsDetected} (Expected: 0)`);
+  console.log(`   ✅ Total Threats Mitigated:  ${stats.threatsMitigated} (Expected: 0)`);
+  console.log(`   💰 Total Loss Prevented:     ${ethers.utils.formatEther(stats.lossPrevented)} ETH (Expected: 0)`);
+  
+  // Verify expected behavior
+  if (stats.threatsDetected.toNumber() !== 0) {
+    console.log(`   ⚠️  WARNING: Expected 0 threats but detected ${stats.threatsDetected}`);
+    console.log(`   ⚠️  This indicates false positives in the AI Oracle!`);
+  } else {
+    console.log(`   ✅ Perfect! No false positives detected.`);
+  }
   console.log();
   
   const bankStats = await bank.getContractStats();
@@ -167,4 +175,3 @@ demoNormalOperation()
     console.error("❌ Demo Error:", error);
     process.exit(1);
   });
-

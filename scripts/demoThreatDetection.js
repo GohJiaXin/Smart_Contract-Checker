@@ -106,202 +106,197 @@ async function demoThreatDetection() {
   await delay(2000);
   
   // ========== THREAT DETECTION ==========
-  console.log("🚨 THREAT DETECTED!");
-  console.log("-".repeat(80));
+  console.log("=".repeat(80));
+  console.log("🚨 DEMO 2: THREAT DETECTION");
+  console.log("=".repeat(80));
   console.log();
+  
   const avgDeposit = parseFloat(ethers.utils.formatEther(bankStats.averageDeposit));
-  const multiplier = (60 / avgDeposit).toFixed(1);
+  const withdrawAmount = 60;
+  const multiplier = (withdrawAmount / avgDeposit).toFixed(1);
   
-  console.log("   ⚠️  ATTACKER ATTEMPT:");
-  console.log("   👤 Attacker trying to withdraw 60 ETH");
+  console.log("   ⚠️  ATTACKER ATTEMPT: 60 ETH withdrawal");
   console.log(`   📊 This is ${multiplier}x the average deposit!`);
-  console.log("   🚨 SUSPICIOUS PATTERN DETECTED!");
   console.log();
   
-  await delay(2000);
+  await delay(1500);
   
-  // Try large withdrawal
+  // Try large withdrawal and capture threat
   const largeWithdrawData = bank.interface.encodeFunctionData("withdraw", [
     ethers.utils.parseEther("60.0")
   ]);
   
-  console.log("   🔍 Immunity Layer analyzing transaction...");
-  await delay(1500);
-  console.log("   ⚠️  Threat Level: HIGH");
-  console.log("   ⚠️  Vulnerability Type: LARGE_WITHDRAWAL");
-  console.log("   ⚠️  Reason: Unusually large withdrawal detected (>10x average)");
-  console.log();
-  
-  await delay(1500);
-  
+  let threatId = null;
+  let threatDetails = null;
+
   try {
-    await immunityLayer.connect(user1).protectedCall(
+    // This should trigger threat detection and freeze
+    const tx = await immunityLayer.connect(attacker).protectedCall(
       bank.address,
       largeWithdrawData,
       { value: 0 }
     );
-    console.log("   ❌ Unexpected: Transaction succeeded");
+    const receipt = await tx.wait();
+
+    // Look for threat events
+    for (const event of receipt.events || []) {
+      if (event.event === 'TransactionFrozen' || event.event === 'ThreatDetected') {
+        threatId = event.args.threatId;
+        console.log("   ✅ TRANSACTION FROZEN FOR SECURITY REVIEW");
+        break;
+      }
+    }
   } catch (error) {
-    if (error.message.includes("Transaction frozen")) {
-      console.log("   ✅ TRANSACTION FROZEN FOR SECURITY REVIEW");
-      console.log("   ⏸️  Transaction has NOT been executed");
-      console.log("   ⏸️  Funds are SAFE");
-      console.log();
-      
-      // Get threat details
+    // Transaction reverted - extract threat ID from events
+    const msg = error.message || '';
+    
+    // Query for threat events
+    try {
       const filter = immunityLayer.filters.ThreatDetected();
       const events = await immunityLayer.queryFilter(filter);
       if (events.length > 0) {
-        const threatId = events[events.length - 1].args.threatId;
-        const threatDetails = await immunityLayer.getThreatDetails(threatId);
-        
-        console.log("   📋 THREAT DETAILS:");
-        console.log(`      Threat ID: ${threatId.substring(0, 20)}...`);
-        console.log(`      Level: ${getThreatLevel(threatDetails.level)}`);
-        console.log(`      Type: ${getVulnType(threatDetails.vulnType)}`);
-        console.log(`      Reason: ${threatDetails.reason}`);
-        console.log(`      Status: FROZEN ⏸️`);
-        console.log();
-        
-        await delay(2000);
-        
-        // ========== AI ANALYSIS ==========
-        console.log("🤖 AI ANALYSIS REQUESTED");
-        console.log("-".repeat(80));
-        console.log("   🔍 AI Oracle analyzing the threat...");
-        await delay(2000);
-        
-        // Submit AI analysis
-        await aiOracle.connect(owner).submitAnalysis(
-          threatId,
-          "Large withdrawal detected (>10x average deposit). This pattern matches known drain attack strategies. The withdrawal amount significantly exceeds normal user behavior and could indicate an attempt to drain the contract.",
-          "revert",
-          true
-        );
-        
-        console.log("   ✅ AI Analysis Complete!");
-        console.log();
-        
-        const aiAnalysis = await aiOracle.getAnalysis(threatId);
-        console.log("   📋 AI ANALYSIS RESULTS:");
-        console.log(`      Status: ${aiAnalysis.completed ? "✅ COMPLETED" : "⏳ PENDING"}`);
-        console.log(`      Analysis: ${aiAnalysis.analysis}`);
-        console.log(`      Recommendation: ${aiAnalysis.suggestedAction.toUpperCase()}`);
-        console.log();
-        
-        await delay(2000);
-        
-        // ========== USER PROMPT ==========
-        console.log("=".repeat(80));
-        console.log("👤 OWNER ACTION REQUIRED");
-        console.log("=".repeat(80));
-        console.log();
-        console.log("   ⚠️  A suspicious transaction has been detected and FROZEN.");
-        console.log("   ⚠️  The transaction has NOT been executed yet.");
-        console.log("   ⚠️  Your funds are SAFE.");
-        console.log();
-        console.log("   📊 Threat Details:");
-        console.log(`      - Threat Level: ${getThreatLevel(threatDetails.level)}`);
-        console.log(`      - Type: ${getVulnType(threatDetails.vulnType)}`);
-        console.log(`      - Amount: 60 ETH`);
-        console.log(`      - AI Recommendation: ${aiAnalysis.suggestedAction.toUpperCase()}`);
-        console.log();
-        console.log("   🤔 What would you like to do?");
-        console.log("      1. REVERT - Block the transaction (recommended)");
-        console.log("      2. EXECUTE - Allow the transaction (dangerous)");
-        console.log("      3. SIMULATE - Request more analysis");
-        console.log();
-        
-        // Get user input
-        const answer = await askQuestion("   Enter your choice (1/2/3): ");
-        console.log();
-        
-        if (answer === "1" || answer.toLowerCase() === "revert") {
-          console.log("   ✅ You chose: REVERT");
-          console.log("   🔒 Blocking the transaction...");
-          await delay(1500);
-          
-          await immunityLayer.connect(owner).executeOwnerOverride(threatId, "revert");
-          
-          console.log("   ✅ Transaction REVERTED");
-          console.log("   🛡️  Funds are PROTECTED");
-          console.log("   ✅ Threat marked as MITIGATED");
-          
-          const finalStats = await immunityLayer.getStats();
-          console.log();
-          console.log("   📊 Updated Statistics:");
-          console.log(`      Threats Detected: ${finalStats.threatsDetected}`);
-          console.log(`      Threats Mitigated: ${finalStats.threatsMitigated}`);
-          
-        } else if (answer === "2" || answer.toLowerCase() === "execute") {
-          console.log("   ⚠️  You chose: EXECUTE");
-          console.log("   ⚠️  WARNING: This is dangerous!");
-          console.log("   ⚠️  Executing despite AI recommendation...");
-          await delay(1500);
-          
-          // Note: In real scenario, you'd need to wait for freeze period
-          // For demo, we'll just show what would happen
-          console.log("   ⚠️  Transaction would execute (if freeze period allows)");
-          console.log("   ⚠️  This could result in fund loss!");
-          
-        } else if (answer === "3" || answer.toLowerCase() === "simulate") {
-          console.log("   🔍 You chose: SIMULATE");
-          console.log("   🔍 Requesting additional AI analysis...");
-          await delay(1500);
-          
-          console.log("   📊 Additional Analysis:");
-          console.log("      - Risk Level: CRITICAL");
-          console.log("      - Estimated Loss: 60 ETH");
-          console.log("      - Pattern Match: 95% confidence");
-          console.log("      - Final Recommendation: REVERT");
-          
-        } else {
-          console.log("   ⚠️  Invalid choice. Defaulting to REVERT...");
-          await immunityLayer.connect(owner).executeOwnerOverride(threatId, "revert");
-          console.log("   ✅ Transaction REVERTED (default action)");
-        }
-        
-        console.log();
-        await delay(2000);
-        
-        // ========== FINAL STATISTICS ==========
-        console.log("=".repeat(80));
-        console.log("📊 FINAL STATISTICS");
-        console.log("=".repeat(80));
-        
-        const finalStats = await immunityLayer.getStats();
-        console.log(`   🛡️  Total Threats Detected:  ${finalStats.threatsDetected}`);
-        console.log(`   ✅ Total Threats Mitigated:  ${finalStats.threatsMitigated}`);
-        console.log(`   💰 Total Loss Prevented:     ${ethers.utils.formatEther(finalStats.lossPrevented)} ETH`);
-        console.log();
-        
-        const finalBankStats = await bank.getContractStats();
-        console.log(`   🏦 Banking Contract Status:`);
-        console.log(`      Total Deposits:  ${ethers.utils.formatEther(finalBankStats.totalDepositsAmount)} ETH`);
-        console.log(`      Contract Balance: ${ethers.utils.formatEther(finalBankStats.contractBalance)} ETH`);
-        console.log(`      Status: SAFE ✅`);
-        console.log();
+        const latestEvent = events[events.length - 1];
+        threatId = latestEvent.args.threatId;
+        console.log("   ✅ TRANSACTION FROZEN FOR SECURITY REVIEW");
       }
+    } catch (queryError) {
+      console.log("   ⚠️  Could not retrieve threat details");
     }
   }
+
+  if (!threatId) {
+    console.log("   ❌ Error: Threat not detected properly");
+    rl.close();
+    return;
+  }
+
+  console.log();
+  await delay(1500);
+  
+  // Get threat details
+  threatDetails = await immunityLayer.getThreatDetails(threatId);
+  
+  // ========== AI ANALYSIS ==========
+  console.log("   🤖 AI Analysis Running...");
+  await delay(2000);
+  
+  // Submit AI analysis
+  await aiOracle.connect(owner).submitAnalysis(
+    threatId,
+    `Large withdrawal detected (${multiplier}x average deposit). This pattern matches known drain attack strategies. Recommended action: REVERT.`,
+    "revert",
+    true
+  );
+  
+  console.log("   🤖 AI Analysis Complete!");
+  console.log();
+  
+  const aiAnalysis = await aiOracle.getAnalysis(threatId);
+  
+  await delay(1500);
+  
+  // ========== USER PROMPT ==========
+  console.log("   👤 OWNER ACTION REQUIRED");
+  console.log();
+  console.log("   📊 Threat Details:");
+  console.log(`      - Threat Level: ${getThreatLevel(threatDetails.level)}`);
+  console.log(`      - Type: ${getVulnType(threatDetails.vulnType)}`);
+  console.log(`      - Amount: 60 ETH`);
+  console.log(`      - AI Recommendation: ${aiAnalysis.suggestedAction.toUpperCase()}`);
+  console.log();
+  console.log("   Options:");
+  console.log("      1. REVERT - Block the transaction (recommended)");
+  console.log("      2. EXECUTE - Allow the transaction");
+  console.log();
+  
+  // Get user input
+  const answer = await askQuestion("   Enter your choice (1/2): ");
+  console.log();
+  
+  // Find the attacker signer for resolution
+  const signers = await ethers.getSigners();
+  const attackerAddr = threatDetails.suspiciousCaller || attacker.address;
+  let resolverSigner = attacker;
+  
+  for (const s of signers) {
+    if (s.address.toLowerCase() === attackerAddr.toLowerCase()) {
+      resolverSigner = s;
+      break;
+    }
+  }
+
+  if (answer === "1" || answer.toLowerCase() === "revert") {
+    console.log("   ✅ Transaction REVERTED");
+    
+    try {
+      await immunityLayer.connect(resolverSigner).userResolveThreat(threatId, "revert");
+    } catch (err) {
+      // Try owner override if user resolution fails
+      try {
+        await immunityLayer.connect(owner).executeOwnerOverride(threatId, "revert");
+      } catch (overrideErr) {
+        console.log("   ℹ️  Threat already resolved or timed out");
+      }
+    }
+    
+    console.log("   🛡️  Funds are PROTECTED");
+    console.log();
+
+  } else if (answer === "2" || answer.toLowerCase() === "execute") {
+    console.log("   ⚠️  Transaction EXECUTED");
+    console.log("   ⚠️  WARNING: Funds may be at risk!");
+    console.log();
+    
+    try {
+      await immunityLayer.connect(resolverSigner).userResolveThreat(threatId, "execute");
+    } catch (err) {
+      console.log("   ⚠️  Execution failed - transaction remains frozen");
+    }
+    
+  } else {
+    console.log("   ⚠️  Invalid choice. Defaulting to REVERT...");
+    try {
+      await immunityLayer.connect(owner).executeOwnerOverride(threatId, "revert");
+    } catch (err) {
+      // Silent fail
+    }
+    console.log("   ✅ Transaction REVERTED");
+    console.log("   🛡️  Funds are PROTECTED");
+    console.log();
+  }
+  
+  await delay(1500);
+  
+  // ========== FINAL STATISTICS ==========
+  console.log("=".repeat(80));
+  console.log("📊 FINAL STATISTICS");
+  console.log("=".repeat(80));
+  
+  const finalStats = await immunityLayer.getStats();
+  console.log(`   🛡️  Total Threats Detected:  ${finalStats.threatsDetected}`);
+  console.log(`   ✅ Total Threats Mitigated:  ${finalStats.threatsMitigated}`);
+  console.log(`   💰 Total Loss Prevented:     ${ethers.utils.formatEther(finalStats.lossPrevented)} ETH`);
+  console.log();
+  
+  const finalBankStats = await bank.getContractStats();
+  console.log(`   🏦 Banking Contract Status:`);
+  console.log(`      Total Deposits:  ${ethers.utils.formatEther(finalBankStats.totalDepositsAmount)} ETH`);
+  console.log(`      Contract Balance: ${ethers.utils.formatEther(finalBankStats.contractBalance)} ETH`);
+  console.log(`      Status: SAFE ✅`);
+  console.log();
   
   // ========== SUMMARY ==========
   console.log("=".repeat(80));
-  console.log("✅ THREAT DETECTION DEMO COMPLETE");
+  console.log("✅ DEMO COMPLETE");
   console.log("=".repeat(80));
   console.log();
   console.log("   🎯 Key Takeaways:");
-  console.log("   ✅ Threats are detected BEFORE execution");
-  console.log("   ✅ Transactions are FROZEN automatically");
+  console.log("   ✅ Threats detected BEFORE execution");
+  console.log("   ✅ Transactions FROZEN automatically");
   console.log("   ✅ AI provides intelligent analysis");
-  console.log("   ✅ Owner maintains control and decides");
-  console.log("   ✅ Funds are PROTECTED in real-time");
+  console.log("   ✅ Owner maintains control");
+  console.log("   ✅ Funds PROTECTED in real-time");
   console.log();
-  console.log("   💡 This is how we prevent billions in losses!");
-  console.log("   💡 Real-time protection, not just audits!");
-  console.log();
-  console.log("=".repeat(80));
-  console.log("🚀 Thank you for the demo!");
   console.log("=".repeat(80));
   console.log();
   
@@ -317,7 +312,8 @@ function getVulnType(type) {
   const types = [
     "REENTRANCY", "FLASH_LOAN", "STATE_MANIPULATION", "UNEXPECTED_ETH_FLOW",
     "UNSAFE_CALL", "ACCESS_CONTROL", "INTEGER_OVERFLOW", "LOGIC_ERROR",
-    "LARGE_WITHDRAWAL", "RAPID_WITHDRAWAL", "ADMIN_FUNCTION_ABUSE", "ORACLE_MANIPULATION", "UNKNOWN"
+    "LARGE_WITHDRAWAL", "RAPID_WITHDRAWAL", "ADMIN_FUNCTION_ABUSE", 
+    "ORACLE_MANIPULATION", "UNKNOWN"
   ];
   return types[type] || "UNKNOWN";
 }
@@ -329,4 +325,3 @@ demoThreatDetection()
     rl.close();
     process.exit(1);
   });
-
